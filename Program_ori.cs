@@ -6,6 +6,8 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
+using database;
+
 class Program
 {
     static async Task Main()
@@ -34,8 +36,16 @@ class Program
             return;
         }
 
+        // データベース初期化
+        database_command dbcmd = new database_command();
+        dbcmd.databaseinit();
+        Console.WriteLine("Database initialized.");
+
+
+        // メッセージ受信用バッファ
         var buffer = new byte[1024 * 4];
 
+        // 2. メッセージ受信ループ
         while (true)
         {
             WebSocketReceiveResult result;
@@ -60,11 +70,15 @@ class Program
                 using var doc = JsonDocument.Parse(message);
                 var root = doc.RootElement;
 
+                // json 全体表示（デバッグ用）
+                Console.WriteLine(root.ToString());
+                Console.WriteLine("-----");
+
                 // Events API のメッセージのみ処理
                 if (root.TryGetProperty("type", out var typeElem) &&
                     typeElem.GetString() == "events_api")
                 {
-                    Console.WriteLine("Events API message received.");
+                    //Console.WriteLine("Events API message received.");
 
                     var payload = root.GetProperty("payload");
                     var eventElem = payload.GetProperty("event");
@@ -73,7 +87,8 @@ class Program
                         !string.IsNullOrEmpty(channelElem.GetString()))
                     {
                         string channel = channelElem.GetString()!;
-                        string text = "Hello from C# Socket Mode Bot!";
+                        string text = root.GetProperty("payload").GetProperty("event").GetProperty("text").GetString()!;
+                        //string text = "Hello from C# Socket Mode Bot!";
 
                         // メッセージ送信
                         await SendMessage(botToken, channel, text);
