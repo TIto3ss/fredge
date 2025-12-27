@@ -244,9 +244,69 @@ namespace database
             }
         }
 
+        // 商品検索コマンド
+        public bool item_search_command(string item_name)
+        {
+            try
+            {
+                using (var conn = new NpgsqlConnection(newconnectionString)){
+                    conn.Open();
+
+                    string searchQuery = @"
+                        SELECT COUNT(*) FROM items
+                        WHERE item_name = @item_name";
+
+                    using (var cmd = new NpgsqlCommand(searchQuery, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@item_name", item_name);
+                        int count = Convert.ToInt32(cmd.ExecuteScalar());
+                        return count > 0;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"{ex.Message}");
+                return false;
+            }
+        }
+
+        // 商品確認コマンド
+        public string item_check_command()
+        {
+            try
+            {
+                using (var conn = new NpgsqlConnection(newconnectionString)){
+                    conn.Open();
+
+                    string selectQuery = @"
+                        SELECT item_name, price FROM items";
+
+                    using (var cmd = new NpgsqlCommand(selectQuery, conn))
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        string items = "商品一覧:\n";
+                        while (reader.Read())
+                        {
+                            string item_name = reader.GetString(0);
+                            int price = reader.GetInt32(1);
+                            items += $"- {item_name}: {price}円\n";
+                        }
+                        return items;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"{ex.Message}");
+                return "商品一覧の取得に失敗しました。";
+            }
+        }
+
         // 購入コマンド
         public void purchase_command(string item_name, int num, string user_id)
         {
+            try{
             using (var conn = new NpgsqlConnection(newconnectionString)){
                 conn.Open();
                 string purchase_Query = @"
@@ -261,6 +321,11 @@ namespace database
                     cmd.ExecuteNonQuery();
                 }
                 Console.WriteLine("購入記録成功");
+            }
+        }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"{ex.Message}");
             }
         }
         
@@ -429,6 +494,6 @@ namespace database
             int balance = total_offering - total_purchase;
             return balance;
         }       
-        
+
     }
 }
