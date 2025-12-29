@@ -1,5 +1,6 @@
 using System;
 using Npgsql;
+using System.Diagnostics;
 
 namespace database
 {
@@ -8,6 +9,7 @@ namespace database
         static string connectionString = "Host=localhost;Username=postgres;Password=test;Database=postgres";
         static string newconnectionString = "Host=localhost;Username=postgres;Password=test;Database=backyard";
         static string databaseName = "backyard";
+
 
         public void databaseinit(){
             
@@ -60,7 +62,7 @@ namespace database
                     createTableQuery = @"
                         CREATE TABLE IF NOT EXISTS users (
                             user_id TEXT NOT NULL PRIMARY KEY,
-                            user_name TEXT NOT NULL UNIQUE
+                            user_name TEXT NOT NULL
                         )";
                     using (var cmd = new NpgsqlCommand(createTableQuery, conn))
                     {
@@ -118,7 +120,9 @@ namespace database
             catch (Exception ex)
             {
                 Console.WriteLine($"{ex.Message}");
-                return;
+                Console.WriteLine("sudo service postgresql startで起動してください");
+                // プログラムを終了
+                Environment.Exit(1);
             }
         }
 
@@ -433,8 +437,8 @@ namespace database
                     conn.Open();
                     string price_Query = @"
                         SELECT SUM(i.price * p.num) FROM purchase_history p
-                        JOIN items i ON p.item_id = i.item_name
-                        JOIN users u ON p.usetr_id = u.user_id
+                        JOIN items i ON p.item_name = i.item_name
+                        JOIN users u ON p.user_id = u.user_id
                         WHERE u.user_name = @user_name";
 
                     using (var cmd = new NpgsqlCommand(price_Query, conn))
@@ -495,5 +499,130 @@ namespace database
             return balance;
         }       
 
+        // テーブルにデータが存在するか確認コマンド
+        public bool data_existence_check_command(string table_name, string column_name, string value)
+        {
+            try
+            {
+                using (var conn = new NpgsqlConnection(newconnectionString)){
+                    conn.Open();
+
+                    string checkQuery = $@"
+                        SELECT COUNT(*) FROM {table_name}
+                        WHERE {column_name} = @value";
+
+                    using (var cmd = new NpgsqlCommand(checkQuery, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@value", value);
+                        int count = Convert.ToInt32(cmd.ExecuteScalar());
+                        return count > 0;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"{ex.Message}");
+                return false;
+            }
+        }
+
+        // ユーザ名取得コマンド
+        public string get_user_name_command(string user_id)
+        {
+            try
+            {
+                using (var conn = new NpgsqlConnection(newconnectionString)){
+                    conn.Open();
+
+                    string getQuery = @"
+                        SELECT user_name FROM users
+                        WHERE user_id = @user_id";
+
+                    using (var cmd = new NpgsqlCommand(getQuery, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@user_id", user_id);
+                        var result = cmd.ExecuteScalar();
+                        if (result != null)
+                        {
+                            return result.ToString()!;
+                        }
+                        else
+                        {
+                            return "不明なユーザー";
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"{ex.Message}");
+                return "不明なユーザー";
+            }
+        }
+
+        // テーブルを確認するコマンド
+        public void table_check_command(string table_name)
+        {
+            try
+            {
+                using (var conn = new NpgsqlConnection(newconnectionString)){
+                    conn.Open();
+
+                    string selectQuery = $@"
+                        SELECT * FROM {table_name}";
+
+                    using (var cmd = new NpgsqlCommand(selectQuery, conn))
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        Console.WriteLine($"テーブル '{table_name}' の内容:");
+                        while (reader.Read())
+                        {
+                            for (int i = 0; i < reader.FieldCount; i++)
+                            {
+                                Console.Write($"{reader.GetName(i)}: {reader.GetValue(i)} ");
+                            }
+                            Console.WriteLine();
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"{ex.Message}");
+            }
+        }
+
+        // テーブルのデータを取得して全員分の入金差額を計算するコマンド
+        public string all_user_balance_command()
+        {
+            string result = "全ユーザーの入金差額:\n";
+            try
+            {
+                using (var conn = new NpgsqlConnection(newconnectionString)){
+                    conn.Open();
+
+                    string userQuery = @"
+                        SELECT user_id, user_name FROM users";
+
+                    using (var cmd = new NpgsqlCommand(userQuery, conn))
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            string user_id = reader.GetString(0);
+                            string user_name = reader.GetString(1);
+                            int balance = balance_calculation_command(user_name);
+                            result += $"- {user_name}: {balance}円\n";
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"{ex.Message}");
+                return "全ユーザーの入金差額の取得に失敗しました。";
+            }
+            return result;
+        }
     }
 }
